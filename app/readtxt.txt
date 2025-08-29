@@ -1,2 +1,7 @@
 ai-assistant>$ uvicorn app.main:app --reload --port 8000
 
+run tests
+cd to app
+
+ai-assistant\app>$pytest
+

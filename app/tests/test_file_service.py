@@ -3,6 +3,7 @@ import pytest
 from app.services.file_service import AdvancedIngestionService
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
+from llama_index.core import SimpleDirectoryReader
 import os
 
 @pytest.mark.asyncio
@@ -56,20 +57,10 @@ async def test_upload_rejects_large_files():
 @pytest.mark.asyncio
 async def test_pdf_chunking():
     service = AdvancedIngestionService()
-    with patch("app.services.file_service.SimpleDirectoryReader") as mock_loader:
+    with patch("llama_index.core.SimpleDirectoryReader") as mock_loader:
         mock_loader.return_value.load_data.return_value = [
             type("Document", (), {"text": "Sample PDF content"})()
         ]
-        """chunks = await service.chunk_pdf("tests/samples/test.pdf")
-        # 
-        from llama_index.core import SimpleDirectoryReader
-        reader = SimpleDirectoryReader(
-            input_dir = "tests/samples",
-            file_extractor={".pdf": "some_extractor"}
-
-        )
-        docs = reader.load_data()
-        assert len(docs) >0 #testing only the integration"""
         process_chunk = await service.process_pdf("tests/samples/test.pdf")
     assert len(process_chunk) == 1
     assert process_chunk[0] == "Sample PDF content"
@@ -77,7 +68,7 @@ async def test_pdf_chunking():
 @pytest.mark.asyncio
 async def test_excel_processing():
     service = AdvancedIngestionService()
-    with patch("app.services.file_service.SimpleDirectoryReader") as mock_loader:
+    with patch("llama_index.core.SimpleDirectoryReader") as mock_loader:
         mock_loader.return_value.load_data.return_value = [
             type("Document", (), {"text": "Sample Excel content"})()
         ]
@@ -98,7 +89,7 @@ async def test_multiple_file_type_support():
 @pytest.mark.asyncio
 async def test_document_processing_error_handling():
     service = AdvancedIngestionService()
-    with patch("app.services.file_service.SimpleDirectoryReader") as mock_loader:
+    with patch("llama_index.core.SimpleDirectoryReader") as mock_loader:
         mock_loader.return_value.load_data.side_effect = Exception("Processing error")
         with pytest.raises(HTTPException) as exc:
             await service.process_document("tests/samples/test.pdf", "application/pdf")
