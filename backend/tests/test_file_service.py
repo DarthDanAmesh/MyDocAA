@@ -1,6 +1,6 @@
 # tests/test_file_service.py
 import pytest
-from app.services.file_service import AdvancedIngestionService
+from backend.services.file_service import AdvancedIngestionService
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 from llama_index.core import SimpleDirectoryReader

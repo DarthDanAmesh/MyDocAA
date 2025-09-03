@@ -1,8 +1,8 @@
 # app/routers/file_router.py
 from fastapi import APIRouter, UploadFile, Depends
 from typing import List
-from app.services.file_service import AdvancedIngestionService
-from app.security import verify_token
+from backend.services.file_service import AdvancedIngestionService
+from backend.security import verify_token
 from slowapi.util import get_remote_address
 from slowapi import Limiter
 

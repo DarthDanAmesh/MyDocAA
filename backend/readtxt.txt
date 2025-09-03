@@ -1,0 +1,9 @@
+ai-assistant>$ uvicorn backend.main:app --reload --port 8000
+backend is the root folder of the backend (if you name it app, change to : uvicorn app.main:app --reload --port 8000)
+main is the main file/starting file that uvicorn needs to run/ or where the webserver instance runs fastapi  (uvicorn backend.main:app --reload --port 8000)
+
+run tests
+cd to app
+
+ai-assistant\app>$pytest
+

@@ -1,4 +1,5 @@
 # app/main.py
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -6,13 +7,22 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 
 # Routers
-from app.routers.file_router import router as file_router
+from backend.routers.file_router import router as file_router
 
 # --- Rate limiter ---
 limiter = Limiter(key_func=get_remote_address)
 
 # --- FastAPI app ---
-app = FastAPI(title="AI Assistant API", version="0.2.0")
+app = FastAPI(title="DocAA", version="0.2.0")
+
+app.add_middleware(CORSMiddleware,
+                   allow_origins=["http://localhost:3000"], # next js default
+                   allow_credentials=True,
+                   allow_methods=["*"],
+                   allow_headers=["*"]
+                   )
+
+
 
 # Attach limiter
 app.state.limiter = limiter

@@ -4,7 +4,7 @@ from typing import Dict, List
 from fastapi import UploadFile, HTTPException
 import tempfile
 
-from app.config import get_settings
+from backend.config import get_settings
 settings = get_settings()
 
 class AdvancedIngestionService:
