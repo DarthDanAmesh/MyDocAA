@@ -1,85 +1,129 @@
-# app/routers/file_router.py
-from fastapi import APIRouter, UploadFile, Depends
-from typing import List
-from backend.services.file_service import AdvancedIngestionService
+# backend/routers/file_router.py
+from fastapi import APIRouter, UploadFile, File, Depends, BackgroundTasks, HTTPException
+from sqlalchemy.orm import Session
+from backend.services.file_service import AdvancedIngestionService, PDFTextExtractor
+from backend.services.knowledge_base_service import KnowledgeBaseIndexer
+from backend.config import get_settings
 from backend.security import verify_token
+from backend.db import get_db
+from backend.models.file_model import FileRecord
+from backend.schemas.file_schema import FileResponse
 from slowapi.util import get_remote_address
 from slowapi import Limiter
+import os
+import shutil
+from typing import List
 
-router = APIRouter()
+router = APIRouter(prefix="/api/files", tags=["files"])
+settings = get_settings()
+kb_indexer = KnowledgeBaseIndexer()
 limiter = Limiter(key_func=get_remote_address)
 
-# Dependency: Service instance
 def get_file_service():
     return AdvancedIngestionService()
 
-
-@router.post(
-    "/",
-    summary="Upload a file",
-    description="Upload a file (PDF/Image) for OCR and later processing."
-)
+@router.post("/", response_model=FileResponse)
+@limiter.limit("5/minute")
 async def upload_file(
-    file: UploadFile,
-    user_id: str,
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    user: dict = Depends(verify_token),
     service: AdvancedIngestionService = Depends(get_file_service),
-    token: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
 ):
-    return await service.upload_file(file, user_id)
+    user_id = user.get("sub")
+    result = await service.upload_file(file, user_id)
+    record = FileRecord(
+        file_id=result["file_id"],
+        filename=result["filename"],
+        file_path=result["file_path"],
+        content_type=result["content_type"],
+        size=result["size"],
+        user_id=user_id,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    background_tasks.add_task(
+        process_and_index_file,
+        file_path=result["file_path"],
+        filename=result["filename"],
+        file_id=result["file_id"],
+        file_type=result["content_type"],
+        kb_indexer=kb_indexer
+    )
+    return record
 
+@router.get("/", response_model=List[FileResponse])
+async def list_files(user: dict = Depends(verify_token), db: Session = Depends(get_db)):
+    user_id = user.get("sub")
+    files = db.query(FileRecord).filter(FileRecord.user_id == user_id).all()
+    return files
 
-@router.get(
-    "/",
-    summary="List user files",
-    description="Get a list of files uploaded by the authenticated user."
-)
-async def list_files(
-    user_id: str,
-    service: AdvancedIngestionService = Depends(get_file_service),
-    token: dict = Depends(verify_token),
-):
-    return await service.list_files(user_id)
+@router.get("/{file_id}", response_model=FileResponse)
+async def get_file(file_id: str, user: dict = Depends(verify_token), db: Session = Depends(get_db)):
+    user_id = user.get("sub")
+    file = db.query(FileRecord).filter(FileRecord.file_id == file_id, FileRecord.user_id == user_id).first()
+    if not file:
+        raise HTTPException(404, "File not found")
+    return file
 
+@router.delete("/{file_id}")
+async def delete_file(file_id: str, user: dict = Depends(verify_token), db: Session = Depends(get_db)):
+    user_id = user.get("sub")
+    file = db.query(FileRecord).filter(FileRecord.file_id == file_id, FileRecord.user_id == user_id).first()
+    if not file:
+        raise HTTPException(404, "File not found")
+    if os.path.exists(file.file_path):
+        os.remove(file.file_path)
+    kb_indexer.delete_by_file_id(file_id)
+    db.delete(file)
+    db.commit()
+    return {"status": "success", "message": f"File {file_id} deleted and embeddings removed"}
 
-@router.get(
-    "/{file_id}",
-    summary="Get file metadata",
-    description="Fetch details about a specific uploaded file."
-)
-async def get_file(
-    file_id: str,
-    user_id: str,
-    service: AdvancedIngestionService = Depends(get_file_service),
-    token: dict = Depends(verify_token),
-):
-    return await service.get_file(file_id, user_id)
+@router.get("/{file_id}/tags")
+async def get_file_tags(file_id: str, user: dict = Depends(verify_token)):
+    try:
+        results = kb_indexer.collection.query(
+            query_texts=[""],
+            where={"file_id": file_id},
+            n_results=1000
+        )
+        tags = set()
+        for metadata in results.get("metadatas", [[]])[0]:
+            tags.update(metadata.get("tags", []))
+        return {"file_id": file_id, "tags": list(tags)}
+    except Exception as e:
+        raise HTTPException(500, f"Error fetching tags: {str(e)}")
 
+@router.get("/{file_id}/status")
+async def get_file_status(file_id: str, user: dict = Depends(verify_token), db: Session = Depends(get_db)):
+    file = db.query(FileRecord).filter(FileRecord.file_id == file_id, FileRecord.user_id == user.get("sub")).first()
+    if not file:
+        raise HTTPException(404, "File not found")
+    # TODO: Implement actual status tracking (e.g., via database field)
+    return {"file_id": file_id, "status": "processed"}
 
-@router.post(
-    "/{file_id}/process",
-    summary="Process an uploaded file",
-    description="Run OCR + embeddings + tagging on the given file.",
-    dependencies=[Depends(limiter.limit("5/minute"))],
-)
-async def process_file(
-    file_id: str,
-    file_type: str,
-    user_id: str,
-    service: AdvancedIngestionService = Depends(get_file_service),
-    token: dict = Depends(verify_token),
-):
-    return await service.process_document(file_id, file_type, user_id)
+def process_and_index_file(file_path: str, filename: str, file_id: str, file_type: str, kb_indexer: KnowledgeBaseIndexer):
+    temp_dir = f"./temp/{os.path.basename(file_path)}"
+    os.makedirs(temp_dir, exist_ok=True)
+    try:
+        extracted_pages = {}
+        if file_type == "application/pdf":
+            extracted_pages = PDFTextExtractor.extract_text_from_pdf(file_path, temp_dir)
+        else:
+            service = AdvancedIngestionService()
+            try:
+                texts = service.process_document.__wrapped__(service, file_path, file_type)
+            except Exception as e:
+                raise RuntimeError(f"Processing failed: {e}")
 
+            for i, text in enumerate(texts):
+                txt_file_path = os.path.join(temp_dir, f"page_{i + 1}.txt")
+                with open(txt_file_path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                extracted_pages[f"page_{i + 1}"] = txt_file_path
 
-@router.delete(
-    "/{file_id}",
-    summary="Delete a file",
-    description="Remove a file from storage and its embeddings from the database."
-)
-async def delete_file(
-    file_id: str,
-    user_id: str,
-    service: AdvancedIngestionService = Depends(get_file_service),
-    token: dict = Depends(verify_token),
-):
-    return await service.delete_file(file_id, user_id)
+        kb_indexer.index_documents(extracted_pages, filename, file_id)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)

@@ -1,6 +1,7 @@
 pytest
 pytest-cov
 pytest-asyncio
+pymupdf
 slowapi
 python-jose
 alembic

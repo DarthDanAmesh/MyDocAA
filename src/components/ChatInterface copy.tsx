@@ -1,4 +1,3 @@
-// src/components/ChatInterface.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -10,65 +9,27 @@ interface Message {
   content: string;
   type?: 'text' | 'image';
   model?: string;
-  ragContext?: { text: string; metadata: any; relevance_score: number }[];
+  ragContext?: string[]; // Retrieved document IDs or snippets
 }
 
 const AVAILABLE_MODELS = [
-  { id: 'qwen2', name: 'Qwen2', description: 'Efficient and fast' },
-  // Add more models if supported by backend
+  { id: 'gpt-4o', name: 'GPT-4o', description: 'Great for most tasks' },
+  { id: 'o3', name: 'o3', description: 'Uses advanced reasoning' },
 ];
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('qwen2');
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  // TODO: Replace with actual JWT token from auth context or login
-  const token = "your_jwt_token_here";
+  const wsRef = useRef<WebSocket | null>(null); // Add WebSocket ref
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/api/chat/ws?token=${token}`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setMessages((prev) => [...prev, data]);
-      setIsLoading(false);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket closed');
-      setIsConnected(false);
-      setIsLoading(false);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setIsConnected(false);
-      setIsLoading(false);
-    };
-
-    return () => {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-    };
-  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -81,21 +42,43 @@ export default function ChatInterface() {
     }
   }, [input]);
 
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:8000/api/chat/ws"); // Adjust URL if behind proxy
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setMessages((prev) => [...prev, data]);
+      setIsLoading(false);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      setIsLoading(false);
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !isConnected) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = { role: 'user', content: input, model: selectedModel };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(userMessage));
-    } else {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'WebSocket is not connected.' }]);
-      setIsLoading(false);
-    }
+    wsRef.current?.send(JSON.stringify(userMessage));
   };
 
   const handleAction = async (action: 'summarize' | 'humanize' | 'export', messageIndex: number) => {
@@ -103,14 +86,12 @@ export default function ChatInterface() {
     try {
       const response = await fetch(`/api/chat/${action}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json'},
         body: JSON.stringify({ content: message.content, model: selectedModel }),
       });
       const data = await response.json();
       if (action === 'export') {
+        // Implement file download (e.g., TXT, PDF, DOCX)
         const blob = new Blob([data.content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -125,7 +106,6 @@ export default function ChatInterface() {
       }
     } catch (error) {
       console.error(`Error in ${action}:`, error);
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Error during ${action}.` }]);
     }
   };
 
@@ -136,16 +116,9 @@ export default function ChatInterface() {
     }
   };
 
-  const clearConversation = async () => {
-    try {
-      await fetch('/api/chat/clear', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      setMessages([]);
-    } catch (error) {
-      console.error('Error clearing conversation:', error);
-    }
+  const clearConversation = () => {
+    setMessages([]);
+    // Call /api/chat/clear (implement in backend)
   };
 
   return (
@@ -309,13 +282,13 @@ export default function ChatInterface() {
               className="w-full px-4 py-3 pr-12 bg-gray-100 border border-gray-200 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-black"
               rows={1}
               style={{ maxHeight: '200px' }}
-              disabled={isLoading || !isConnected}
+              disabled={isLoading}
             />
             <button
               type="submit"
-              disabled={isLoading || !input.trim() || !isConnected}
+              disabled={isLoading || !input.trim()}
               className={`absolute right-3 bottom-3 p-1.5 rounded-lg ${
-                isLoading || !input.trim() || !isConnected
+                isLoading || !input.trim()
                   ? 'text-gray-300 cursor-not-allowed'
                   : 'text-white bg-black hover:bg-gray-800'
               }`}
@@ -326,9 +299,7 @@ export default function ChatInterface() {
             </button>
           </form>
           <p className="text-xs text-gray-500 mt-2 text-center">
-            {isConnected
-              ? 'Assistant may use retrieved documents for responses.'
-              : 'Connecting to chat service...'}
+            Assistant may use retrieved documents for responses.
           </p>
         </div>
       </div>
