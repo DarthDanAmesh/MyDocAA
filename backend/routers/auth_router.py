@@ -14,7 +14,7 @@ from backend.security import (
 )
 from pydantic import BaseModel, EmailStr
 
-router = APIRouter(prefix="/api/auth", tags=["authentication"])
+router = APIRouter(prefix="/api", tags=["authentication"])
 
 class UserCreate(BaseModel):
     username: str
