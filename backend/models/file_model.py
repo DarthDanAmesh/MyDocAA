@@ -1,6 +1,10 @@
-from sqlalchemy import Column, String, Integer, DateTime
-from datetime import datetime
+#backend/models/file_model.py
+
+from sqlalchemy import ForeignKey, Column, String, Integer, DateTime
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from backend.db import Base
+
 
 class FileRecord(Base):
     __tablename__ = "files"
@@ -11,5 +15,8 @@ class FileRecord(Base):
     file_path = Column(String, nullable=False)
     content_type = Column(String, nullable=False)
     size = Column(Integer, nullable=False)
-    user_id = Column(String, index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationship to User
+    user = relationship("User", backref="files")

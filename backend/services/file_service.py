@@ -1,18 +1,22 @@
 # backend/services/file_service.py
 import os
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 from fastapi import UploadFile, HTTPException
 from backend.config import get_settings
 import tempfile
 import fitz #PyMuPDF
-from backend.config import get_settings
+from backend.models.user_model import User  # Import User model
+from backend.models.file_model import FileRecord  # Import FileRecord model
+from sqlalchemy.orm import Session  # Import Session
+from backend.db import get_db  # Import get_db
+
 settings = get_settings()
 
 
 class PDFTextExtractor:
     @staticmethod
-    def extract_text_from_pdf(pdf_path: str, output_dir: str) -> dict:
+    def extract_text_from_pdf(pdf_path: str, output_dir: str) -> Dict[str, str]:
         os.makedirs(output_dir, exist_ok=True)
         pdf_document = fitz.open(pdf_path)
         extracted_pages = {}
@@ -40,7 +44,18 @@ class AdvancedIngestionService:
             "application/vnd.ms-excel": ".xls"
         }
 
-    async def upload_file(self, file: UploadFile, user_id: str) -> Dict:
+    async def upload_file(self, file: UploadFile, user: User, db: Session) -> Dict:
+        """
+        Upload a file and create a database record for it.
+        
+        Args:
+            file: The file to upload
+            user: The user uploading the file (User object)
+            db: Database session
+            
+        Returns:
+            Dictionary with file information
+        """
         if file.content_type not in self.allowed_types:
             raise HTTPException(400, f"Invalid file type. Allowed types: {list(self.allowed_types.keys())}")
 
@@ -50,19 +65,30 @@ class AdvancedIngestionService:
             raise HTTPException(400, f"File exceeds {settings.MAX_FILE_SIZE_MB}MB limit.")
         await file.seek(0)
 
-        upload_dir = os.path.join(settings.UPLOAD_DIR, user_id)
+        # Create user-specific directory
+        user_id_str = str(user.id)
+        upload_dir = os.path.join(settings.UPLOAD_DIR, user_id_str)
         os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
+        
+        # Generate unique filename to avoid conflicts
+        file_id = str(uuid.uuid4())
+        file_extension = self.allowed_types.get(file.content_type, "")
+        safe_filename = f"{file_id}{file_extension}"
+        file_path = os.path.join(upload_dir, safe_filename)
+        
+        # Save the file
         with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
 
+        # Create and return file information
         return {
-            "file_id": str(uuid.uuid4()),
+            "file_id": file_id,
             "file_path": file_path,
-            "filename": file.filename,
+            "filename": file.filename,  # Keep original filename for display
+            "safe_filename": safe_filename,  # Include safe filename for reference
             "size": size,
             "content_type": file.content_type,
-            "user_id": user_id
+            "user_id": user_id_str
         }
 
     async def process_document(self, file_path: str, file_type: str) -> List[str]:
@@ -104,3 +130,59 @@ class AdvancedIngestionService:
 
     async def process_image(self, file_path: str) -> List[str]:
         return await self.process_document(file_path, "image/png")
+    
+    async def get_user_files(self, user: User, db: Session) -> List[FileRecord]:
+        """
+        Get all files for a specific user.
+        
+        Args:
+            user: The user to get files for
+            db: Database session
+            
+        Returns:
+            List of FileRecord objects
+        """
+        return db.query(FileRecord).filter(FileRecord.user_id == user.id).all()
+    
+    async def get_file_by_id(self, file_id: str, user: User, db: Session) -> Optional[FileRecord]:
+        """
+        Get a specific file by ID for a user.
+        
+        Args:
+            file_id: The ID of the file
+            user: The user who owns the file
+            db: Database session
+            
+        Returns:
+            FileRecord object or None if not found
+        """
+        return db.query(FileRecord).filter(
+            FileRecord.file_id == file_id, 
+            FileRecord.user_id == user.id
+        ).first()
+    
+    async def delete_file(self, file_id: str, user: User, db: Session) -> bool:
+        """
+        Delete a file and its database record.
+        
+        Args:
+            file_id: The ID of the file to delete
+            user: The user who owns the file
+            db: Database session
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        file_record = await self.get_file_by_id(file_id, user, db)
+        if not file_record:
+            return False
+            
+        # Delete the file from disk
+        if os.path.exists(file_record.file_path):
+            os.remove(file_record.file_path)
+        
+        # Delete the database record
+        db.delete(file_record)
+        db.commit()
+        
+        return True

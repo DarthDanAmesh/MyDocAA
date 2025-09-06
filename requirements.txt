@@ -3,6 +3,11 @@ pytest-cov
 pytest-asyncio
 pymupdf
 slowapi
+pydantic-settings
+sqlalchemy
 python-jose
 alembic
+ollama
+"pyjwt[crypto]"
 "psycopg[binary,pool]"
+"passlib[bcrypt]"

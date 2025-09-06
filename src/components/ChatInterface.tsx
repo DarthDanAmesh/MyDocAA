@@ -1,7 +1,8 @@
 // src/components/ChatInterface.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -19,6 +20,7 @@ const AVAILABLE_MODELS = [
 ];
 
 export default function ChatInterface() {
+  const {token, user} = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,14 +31,18 @@ export default function ChatInterface() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // TODO: Replace with actual JWT token from auth context or login
-  const token = "your_jwt_token_here";
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
+
+    if (!token){
+      //redirect to login or show login modal
+      console.log('User not authenticated');
+      return;
+    }
+    
     const ws = new WebSocket(`ws://localhost:8000/api/chat/ws?token=${token}`);
     wsRef.current = ws;
 
@@ -68,7 +74,8 @@ export default function ChatInterface() {
         ws.close();
       }
     };
-  }, []);
+  }, [token]);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -150,10 +157,14 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
+      {/* Add a login status indicator */}
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold">DocAA Chat</h1>
+            {user && (
+              <span className="text-sm text-gray-600">Welcome, {user.username}</span>
+            )}
             <div className="relative">
               <button
                 onClick={() => setShowModelDropdown(!showModelDropdown)}

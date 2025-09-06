@@ -7,12 +7,16 @@ import os
 import shutil
 from urllib.parse import unquote
 import uuid
-from typing import List
+from typing import List, Dict, Any
 from backend.config import get_settings
 from backend.services.chat_service import ChatbotService
 from backend.services.file_service import AdvancedIngestionService, PDFTextExtractor
 from backend.services.knowledge_base_service import KnowledgeBaseIndexer
 from backend.security import verify_token, verify_websocket_token
+from backend.models.user_model import User  # Import User model
+from backend.models.file_model import FileRecord # Import FileRecord model
+from sqlalchemy.orm import Session  # Import Session for database operations
+from backend.db import get_db  # Import get_db dependency
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 settings = get_settings()
@@ -29,22 +33,30 @@ class ActionRequest(BaseModel):
     model: str = "qwen2"
 
 @router.websocket("/ws")
-async def websocket_chat(websocket: WebSocket, payload: dict = Depends(verify_websocket_token)):
+async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_websocket_token)):
     await websocket.accept()
-    user_id = payload.get("sub")
+    user_id = str(user.id)
     conversation = []
     try:
         while True:
             data = await websocket.receive_json()
             query = data.get("content", "")
             model = data.get("model", "qwen2")
-            response = await chatbot_service.generate_response(query)
+            
+            # Pass user_id and selected model to the chatbot service
+            response = await chatbot_service.generate_response(
+                query, 
+                user_id=user_id,
+                model=model
+            )
+            
             await websocket.send_json({
                 "role": "assistant",
                 "content": response["content"],
                 "ragContext": response.get("ragContext", []),
-                "model": model
+                "model": response.get("model", model)
             })
+            
             conversation.append({
                 "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 "user_message": query,
@@ -55,6 +67,7 @@ async def websocket_chat(websocket: WebSocket, payload: dict = Depends(verify_we
     except Exception as e:
         await websocket.send_json({"role": "assistant", "content": f"Error: {str(e)}", "ragContext": []})
     finally:
+        # Save conversation history
         history_dir = os.path.join(settings.UPLOAD_DIR, user_id, "history")
         os.makedirs(history_dir, exist_ok=True)
         history_file = os.path.join(history_dir, f"conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
@@ -62,35 +75,57 @@ async def websocket_chat(websocket: WebSocket, payload: dict = Depends(verify_we
             json.dump(conversation, f, indent=2)
 
 @router.post("/")
-async def chat(request: ChatRequest, user: dict = Depends(verify_token)):
+async def chat(request: ChatRequest, user: User = Depends(verify_token)):
     try:
-        response = await chatbot_service.generate_response(request.message)
-        return {"content": response["content"], "ragContext": response.get("ragContext", []), "model": request.model}
+        response = await chatbot_service.generate_response(
+            request.message, 
+            user_id=str(user.id),
+            model=request.model
+        )
+        return {
+            "content": response["content"], 
+            "ragContext": response.get("ragContext", []), 
+            "model": response.get("model", request.model)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 @router.post("/summarize")
-async def summarize_message(request: ActionRequest, user: dict = Depends(verify_token)):
+async def summarize_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
-        prompt = f"Summarize the following text in a concise manner:\n\n{request.content}"
-        response = await chatbot_service.generate_response(prompt)
-        return {"content": response["content"], "ragContext": response.get("ragContext", []), "model": request.model}
+        # Use the new summarize_text method
+        response = await chatbot_service.summarize_text(
+            request.content,
+            model=request.model
+        )
+        return {
+            "content": response["content"], 
+            "ragContext": [],  # Summarization doesn't need RAG context
+            "model": response.get("model", request.model)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Summarization error: {str(e)}")
 
 @router.post("/humanize")
-async def humanize_message(request: ActionRequest, user: dict = Depends(verify_token)):
+async def humanize_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
-        prompt = f"Rewrite the following text in a more conversational and human-like tone:\n\n{request.content}"
-        response = await chatbot_service.generate_response(prompt)
-        return {"content": response["content"], "ragContext": response.get("ragContext", []), "model": request.model}
+        # Use the new humanize_text method
+        response = await chatbot_service.humanize_text(
+            request.content,
+            model=request.model
+        )
+        return {
+            "content": response["content"], 
+            "ragContext": [],  # Humanization doesn't need RAG context
+            "model": response.get("model", request.model)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Humanization error: {str(e)}")
 
 @router.post("/export")
-async def export_message(request: ActionRequest, user: dict = Depends(verify_token)):
+async def export_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
-        user_id = user.get("sub")
+        user_id = str(user.id)  # Convert to string for file paths
         export_dir = os.path.join(settings.UPLOAD_DIR, user_id, "exports")
         os.makedirs(export_dir, exist_ok=True)
         export_file = os.path.join(export_dir, f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
@@ -101,9 +136,9 @@ async def export_message(request: ActionRequest, user: dict = Depends(verify_tok
         raise HTTPException(status_code=500, detail=f"Export error: {str(e)}")
 
 @router.delete("/clear")
-async def clear_conversation(user: dict = Depends(verify_token)):
+async def clear_conversation(user: User = Depends(verify_token)):
     try:
-        user_id = user.get("sub")
+        user_id = str(user.id)  # Convert to string for file paths
         history_dir = os.path.join(settings.UPLOAD_DIR, user_id, "history")
         if os.path.exists(history_dir):
             shutil.rmtree(history_dir)
@@ -112,29 +147,36 @@ async def clear_conversation(user: dict = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=f"Error clearing history: {str(e)}")
 
 @router.post("/reindex")
-async def reindex(background_tasks: BackgroundTasks, user: dict = Depends(verify_token)):
+async def reindex(background_tasks: BackgroundTasks, user: User = Depends(verify_token), db: Session = Depends(get_db)):
     def reindex_all():
-        user_id = user.get("sub")
+        user_id = str(user.id)  # Convert to string for file paths
         user_path = os.path.join(settings.UPLOAD_DIR, user_id)
         if not os.path.exists(user_path):
             print(f"Upload directory not found: {user_path}")
             return
-
+        
+        # Get all files for this user from the database
+        files = db.query(FileRecord).filter(FileRecord.user_id == user.id).all()
+        
         processed_count = 0
         failed_files = []
-
-        for file_name in os.listdir(user_path):
-            file_path = os.path.join(user_path, file_name)
-            if not os.path.isfile(file_path) or file_name.startswith('.'):
+        
+        for file_record in files:
+            file_path = file_record.file_path
+            if not os.path.exists(file_path):
+                print(f"File not found: {file_path}")
+                failed_files.append(f"{file_record.filename}: File not found")
                 continue
-
-            file_id = str(uuid.uuid5(uuid.NAMESPACE_X500, f"{user_id}/{file_name}"))
+                
+            file_id = file_record.file_id
+            file_name = file_record.filename
+            file_type = file_record.content_type
+            
             temp_dir = os.path.join("./temp", f"reindex_{file_id}")
             os.makedirs(temp_dir, exist_ok=True)
-
+            
             try:
                 extracted_pages = {}
-                file_type = "application/pdf" if file_name.lower().endswith(".pdf") else "application/octet-stream"
                 if file_type == "application/pdf":
                     extracted_pages = PDFTextExtractor.extract_text_from_pdf(file_path, temp_dir)
                 else:
@@ -147,24 +189,23 @@ async def reindex(background_tasks: BackgroundTasks, user: dict = Depends(verify
                         with open(txt_file_path, "w", encoding="utf-8") as f:
                             f.write(text)
                         extracted_pages[f"page_{i + 1}"] = txt_file_path
-
+                
                 if extracted_pages:
                     kb_indexer.index_documents(extracted_pages, document_name=unquote(file_name), file_id=file_id)
                     print(f"Reindexed: {file_name} (ID: {file_id})")
                     processed_count += 1
                 else:
                     failed_files.append(f"{file_name} (no content extracted)")
-
             except Exception as e:
                 print(f"Failed to process {file_name}: {str(e)}")
                 failed_files.append(f"{file_name}: {str(e)}")
             finally:
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir, ignore_errors=True)
-
+        
         print(f"Reindexing completed for user {user_id}. {processed_count} files processed.")
         if failed_files:
             print("Failures:", failed_files)
-
+    
     background_tasks.add_task(reindex_all)
     return {"status": "success", "message": "Reindexing started in the background"}

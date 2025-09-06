@@ -3,6 +3,10 @@
 from fastapi import Depends, HTTPException, status, WebSocket
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
+from backend.models.user_model import User
+from backend.db import get_db
+from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 import os
 from dotenv import load_dotenv
@@ -24,7 +28,19 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # password hashing
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+
+
+def verify_password(plain_password:str, hashed_password:str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password:str)-> str:
+    return pwd_context.hash(password)
+
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -32,25 +48,53 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token: str = Depends(oauth2_scheme)):
+def verify_token(token: str = Depends(oauth2_scheme), db:Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: user_id not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer"},  
         )
+    
+    #fetch the user from the database
+    user = db.query(User).filter(User.id==int(user_id)).first()
+    if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return user # return the full user object
+    
 
-async def verify_websocket_token(websocket: WebSocket):
+async def verify_websocket_token(websocket: WebSocket, db: Session = Depends(get_db)):
     token = websocket.query_params.get("token")
     if not token:
         await websocket.close(code=4001, reason="Missing token")
         raise HTTPException(status_code=401, detail="Missing token")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            await websocket.close(code=4001, reason="Invalid token: user_id not found")
+            raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
+        
+        # Fetch the user from the database
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None:
+            await websocket.close(code=4001, reason="User not found")
+            raise HTTPException(status_code=401, detail="User not found")
+            
+        return user
     except JWTError:
         await websocket.close(code=4001, reason="Invalid or expired token")
         raise HTTPException(status_code=401, detail="Invalid or expired token")

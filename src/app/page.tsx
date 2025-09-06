@@ -1,12 +1,11 @@
-//page.tsx
-
+// app/page.tsx
 'use client';
-
 import { useState } from 'react';
 import ChatInterface from '../components/ChatInterface';
 import DocumentsView from '../components/DocumentsView';
 import SearchView from '../components/SearchView';
 import SettingsView from '../components/SettingsView';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function Home() {
   const [activeView, setActiveView] = useState<
@@ -14,11 +13,13 @@ export default function Home() {
   >('chat');
 
   return (
-    <main className="h-screen">
-      {activeView === 'chat' && <ChatInterface />}
-      {activeView === 'documents' && <DocumentsView />}
-      {activeView === 'search' && <SearchView />}
-      {activeView === 'settings' && <SettingsView />}
-    </main>
+    <ProtectedRoute>
+      <main className="h-full">
+        {activeView === 'chat' && <ChatInterface />}
+        {activeView === 'documents' && <DocumentsView />}
+        {activeView === 'search' && <SearchView />}
+        {activeView === 'settings' && <SettingsView />}
+      </main>
+    </ProtectedRoute>
   );
 }

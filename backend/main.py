@@ -13,9 +13,10 @@ from backend.routers.auth_router import router as auth_router
 
 # DB
 from backend.db import Base, engine
+from backend.models.user_model import User
 from backend.models.file_model import FileRecord
 
-# Create tables
+# Create tables (from models: backend/models/*)
 Base.metadata.create_all(bind=engine)
 
 # --- Rate limiter ---
