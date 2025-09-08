@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
 class ActionRequest(BaseModel):
     content: str
     model: str = "qwen2:0.5b"
+    format: str = "txt"
 
 @router.websocket("/chat/ws")
 async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_websocket_token)):
@@ -126,13 +127,46 @@ async def humanize_message(request: ActionRequest, user: User = Depends(verify_t
 @router.post("/chat/export")
 async def export_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
-        user_id = str(user.id)  # Convert to string for file paths
+        user_id = str(user.id)
         export_dir = os.path.join(settings.UPLOAD_DIR, user_id, "exports")
         os.makedirs(export_dir, exist_ok=True)
-        export_file = os.path.join(export_dir, f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
-        with open(export_file, 'w', encoding='utf-8') as f:
-            f.write(request.content)
-        return {"message": "Message exported", "file_path": export_file}
+        
+        # Get format from request, default to 'txt'
+        export_format = getattr(request, 'format', 'txt')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        if export_format == 'markdown':
+            export_file = os.path.join(export_dir, f"export_{timestamp}.md")
+            with open(export_file, 'w', encoding='utf-8') as f:
+                f.write(f"# Chat Export\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## Content\n\n")
+                f.write(request.content)
+            file_type = "text/markdown"
+        elif export_format == 'pdf':
+            # You'll need to implement PDF generation
+            # This is a placeholder - you'll need a library like reportlab or weasyprint
+            export_file = os.path.join(export_dir, f"export_{timestamp}.pdf")
+            # PDF generation code would go here
+            # For now, just create a text file as a placeholder
+            with open(export_file, 'w', encoding='utf-8') as f:
+                f.write(request.content)
+            file_type = "application/pdf"
+        else:  # Default to txt
+            export_file = os.path.join(export_dir, f"export_{timestamp}.txt")
+            with open(export_file, 'w', encoding='utf-8') as f:
+                f.write(request.content)
+            file_type = "text/plain"
+        
+        # Read the file and return it as a response
+        with open(export_file, 'rb') as f:
+            content = f.read()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=content,
+            media_type=file_type,
+            headers={"Content-Disposition": f"attachment; filename=export_{timestamp}.{export_format}"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {str(e)}")
 

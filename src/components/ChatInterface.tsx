@@ -12,6 +12,9 @@ interface Message {
   type?: 'text' | 'image';
   model?: string;
   ragContext?: { text: string; metadata: any; relevance_score: number }[];
+  actionType?: 'summarize' | 'humanize' | null;
+  originalContent?: string;
+  isExpanded?: boolean;
 }
 
 const AVAILABLE_MODELS = [
@@ -30,6 +33,9 @@ export default function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportContent, setExportContent] = useState('');
+  const [exportFormat, setExportFormat] = useState('txt');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -117,23 +123,78 @@ export default function ChatInterface() {
         body: JSON.stringify({ content: message.content, model: selectedModel }),
       });
       const data = await response.json();
+      
       if (action === 'export') {
-        const blob = new Blob([data.content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `chat-${Date.now()}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // show a modal with format options for export action
+        setShowExportModal(true);
+        setExportContent(message.content);
       } else {
+        // For summarize and humanize, update the message with both original and new content
         setMessages((prev) =>
-          prev.map((m, i) => (i === messageIndex ? { ...m, content: data.content } : m))
+          prev.map((m, i) => 
+            i === messageIndex 
+              ? { 
+                  ...m, 
+                  content: data.content, 
+                  actionType: action,
+                  originalContent: m.content,
+                  isExpanded: true // Expand by default to show the result
+                } 
+              : m
+          )
         );
       }
     } catch (error) {
       console.error(`Error in ${action}:`, error);
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error during ${action}.` }]);
     }
+  };
+
+
+  const handleExport = async () => {
+    try {
+      const response = await fetch(`/api/chat/export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          content: exportContent, 
+          model: selectedModel,
+          format: exportFormat 
+        }),
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Set appropriate file extension based on format
+        const extension = exportFormat === 'markdown' ? 'md' : exportFormat;
+        a.download = `chat-${Date.now()}.${extension}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setShowExportModal(false);
+      } else {
+        console.error('Export failed');
+      }
+    } catch (error) {
+      console.error('Error exporting:', error);
+    }
+  };
+
+
+  const toggleAccordion = (messageIndex: number) => {
+    setMessages((prev) =>
+      prev.map((m, i) => 
+        i === messageIndex 
+          ? { ...m, isExpanded: !m.isExpanded } 
+          : m
+      )
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -244,8 +305,13 @@ export default function ChatInterface() {
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-center mb-1">
-                    <div className="font-semibold text-sm">
+                    <div className="font-semibold text-sm flex items-center gap-2">
                       {message.role === 'user' ? 'You' : 'Assistant'}
+                      {message.actionType && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                          {message.actionType === 'summarize' ? 'Summarized' : 'Humanized'}
+                        </span>
+                      )}
                     </div>
                     {message.role === 'assistant' && (
                       <div className="flex gap-2">
@@ -270,16 +336,97 @@ export default function ChatInterface() {
                       </div>
                     )}
                   </div>
+                  
                   {message.ragContext && (
                     <div className="text-xs text-gray-500 mb-2">
                       Retrieved {message.ragContext.length} document(s)
                     </div>
                   )}
+                  
+                  {/* Accordion for messages with actions */}
+                  {message.actionType && message.originalContent && (
+                    <div className="mb-2 border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => toggleAccordion(index)}
+                        className="w-full flex justify-between items-center p-2 bg-gray-50 hover:bg-gray-100 text-left"
+                      >
+                        <span className="text-sm font-medium">
+                          {message.isExpanded ? 'Hide Original' : 'View Original'}
+                        </span>
+                        <svg
+                          className={`w-4 h-4 transform transition-transform ${
+                            message.isExpanded ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      
+                      {message.isExpanded && (
+                        <div className="p-3 bg-white border-t border-gray-200">
+                          <div className="text-sm text-gray-600 mb-1">Original:</div>
+                          <div className="prose prose-sm max-w-none text-gray-800">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.originalContent}</ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Main content */}
                   <div className="prose prose-sm max-w-none text-gray-800">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                   </div>
                 </div>
               </div>
+              
+              {/* Export modal content */}
+              {showExportModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                  <h3 className="text-lg font-semibold mb-4">Export Chat</h3>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Export Format
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['txt', 'markdown', 'pdf'].map((format) => (
+                        <button
+                          key={format}
+                          onClick={() => setExportFormat(format)}
+                          className={`py-2 px-3 rounded-md text-sm font-medium ${
+                            exportFormat === format
+                              ? 'bg-black text-white'
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                          }`}
+                        >
+                          {format.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowExportModal(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleExport}
+                      className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+                    >
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             </div>
           ))}
           {isLoading && (
