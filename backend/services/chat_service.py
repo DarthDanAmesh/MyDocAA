@@ -11,7 +11,7 @@ from backend.models.file_model import FileRecord
 logger = logging.getLogger(__name__)
 
 class ChatbotService:
-    def __init__(self, knowledge_base: KnowledgeBaseIndexer = None, default_model: str = "qwen2"):
+    def __init__(self, knowledge_base: KnowledgeBaseIndexer = None, default_model: str = "qwen2:0.5b"):
         self.knowledge_base = knowledge_base
         self.default_model = default_model
         self.llm = AsyncClient(host="http://localhost:11434")

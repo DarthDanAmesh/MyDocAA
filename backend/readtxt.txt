@@ -1,5 +1,11 @@
 ai-assistant>$ uvicorn backend.main:app --reload --port 8000
 backend is the root folder of the backend (if you name it app, change to : uvicorn app.main:app --reload --port 8000)
+
+check models available to the api: curl http://localhost:11434/api/tags
+
+Embedding Model Error:
+if a given model returns a status error code of 404, eg qwen2 status 404 just pull in the current terminal : ollama pull qwen2:0.5b
+Not required but sometimes the model is an upgrade and new in the ollama list: change the model name in the ai-assistant\src\components\ChatInterface.tsx
 main is the main file/starting file that uvicorn needs to run/ or where the webserver instance runs fastapi  (uvicorn backend.main:app --reload --port 8000)
 
 run tests

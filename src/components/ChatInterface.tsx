@@ -15,7 +15,7 @@ interface Message {
 }
 
 const AVAILABLE_MODELS = [
-  { id: 'qwen2', name: 'Qwen2', description: 'Efficient and fast' },
+  { id: 'qwen2:0.5b', name: 'Qwen2:0.5b', description: 'Efficient and fast' },
   // Add more models if supported by backend
 ];
 
@@ -25,7 +25,7 @@ export default function ChatInterface() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('qwen2');
+  const [selectedModel, setSelectedModel] = useState('qwen2:0.5b');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

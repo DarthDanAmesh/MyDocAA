@@ -26,11 +26,11 @@ file_service = AdvancedIngestionService()
 
 class ChatRequest(BaseModel):
     message: str
-    model: str = "qwen2"
+    model: str = "qwen2:0.5b"
 
 class ActionRequest(BaseModel):
     content: str
-    model: str = "qwen2"
+    model: str = "qwen2:0.5b"
 
 @router.websocket("/chat/ws")
 async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_websocket_token)):
@@ -41,7 +41,7 @@ async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_webso
         while True:
             data = await websocket.receive_json()
             query = data.get("content", "")
-            model = data.get("model", "qwen2")
+            model = data.get("model", "qwen2:0.5b")
             
             # Pass user_id and selected model to the chatbot service
             response = await chatbot_service.generate_response(
@@ -49,7 +49,7 @@ async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_webso
                 user_id=user_id,
                 model=model
             )
-            
+            print(model)
             await websocket.send_json({
                 "role": "assistant",
                 "content": response["content"],

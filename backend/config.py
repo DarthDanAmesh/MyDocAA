@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Vector DB + Embeddings
     CHROMA_DB_DIR: str = "./chroma_db"
-    EMBEDDING_MODEL: str = "mxbai-embed-large"
+    EMBEDDING_MODEL: str = "nomic-embed-text" #ollama pull nomic-embed-text (this one is 278MB), mxbai-embed-large (670MB), or some other embedding model
     OLLAMA_URL: str = "http://localhost:11434"
 
     # Security
