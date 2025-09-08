@@ -35,7 +35,8 @@ export default function DocumentsView() {
     try {
       setIsLoading(true);
       const response = await fetch('/api/files/', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       
       if (response.ok) {
@@ -76,7 +77,8 @@ export default function DocumentsView() {
   const handleView = async (file_id: string) => {
     try {
       const response = await fetch(`/api/files/${file_id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       
       if (response.ok) {
@@ -144,6 +146,7 @@ export default function DocumentsView() {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
+          credentials: 'include',
         });
         
         if (!response.ok) {
@@ -165,7 +168,8 @@ export default function DocumentsView() {
         setTimeout(async () => {
           try {
             const tagsResponse = await fetch(`/api/files/${data.file_id}/tags`, {
-              headers: { Authorization: `Bearer ${token}` }
+              headers: { Authorization: `Bearer ${token}` },
+              credentials: 'include',
             });
             
             if (tagsResponse.ok) {
@@ -222,6 +226,7 @@ export default function DocumentsView() {
       const response = await fetch(`/api/files/${file_id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       
       if (response.ok) {
@@ -251,7 +256,8 @@ export default function DocumentsView() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
+          Authorization: `Bearer ${token}`,
+          credentials: 'include', 
         }
       });
       
@@ -268,7 +274,8 @@ export default function DocumentsView() {
         // Fetch updated tags
         try {
           const tagsResponse = await fetch(`/api/files/${file_id}/tags`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: 'include',
           });
           
           if (tagsResponse.ok) {

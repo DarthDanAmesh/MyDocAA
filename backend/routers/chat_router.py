@@ -18,7 +18,7 @@ from backend.models.file_model import FileRecord # Import FileRecord model
 from sqlalchemy.orm import Session  # Import Session for database operations
 from backend.db import get_db  # Import get_db dependency
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(tags=["chat"])
 settings = get_settings()
 kb_indexer = KnowledgeBaseIndexer()
 chatbot_service = ChatbotService(knowledge_base=kb_indexer)
@@ -32,7 +32,7 @@ class ActionRequest(BaseModel):
     content: str
     model: str = "qwen2"
 
-@router.websocket("/ws")
+@router.websocket("/chat/ws")
 async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_websocket_token)):
     await websocket.accept()
     user_id = str(user.id)
@@ -65,6 +65,7 @@ async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_webso
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for user {user_id}")
     except Exception as e:
+        print(f"WebSocket error: {str(e)}")
         await websocket.send_json({"role": "assistant", "content": f"Error: {str(e)}", "ragContext": []})
     finally:
         # Save conversation history
@@ -74,7 +75,7 @@ async def websocket_chat(websocket: WebSocket, user: User = Depends(verify_webso
         with open(history_file, 'w', encoding='utf-8') as f:
             json.dump(conversation, f, indent=2)
 
-@router.post("/")
+@router.post("/chat")
 async def chat(request: ChatRequest, user: User = Depends(verify_token)):
     try:
         response = await chatbot_service.generate_response(
@@ -90,7 +91,7 @@ async def chat(request: ChatRequest, user: User = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
-@router.post("/summarize")
+@router.post("/chat/summarize")
 async def summarize_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
         # Use the new summarize_text method
@@ -106,7 +107,7 @@ async def summarize_message(request: ActionRequest, user: User = Depends(verify_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Summarization error: {str(e)}")
 
-@router.post("/humanize")
+@router.post("/chat/humanize")
 async def humanize_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
         # Use the new humanize_text method
@@ -122,7 +123,7 @@ async def humanize_message(request: ActionRequest, user: User = Depends(verify_t
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Humanization error: {str(e)}")
 
-@router.post("/export")
+@router.post("/chat/export")
 async def export_message(request: ActionRequest, user: User = Depends(verify_token)):
     try:
         user_id = str(user.id)  # Convert to string for file paths
@@ -135,7 +136,7 @@ async def export_message(request: ActionRequest, user: User = Depends(verify_tok
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {str(e)}")
 
-@router.delete("/clear")
+@router.delete("/chat/clear")
 async def clear_conversation(user: User = Depends(verify_token)):
     try:
         user_id = str(user.id)  # Convert to string for file paths
@@ -146,7 +147,7 @@ async def clear_conversation(user: User = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing history: {str(e)}")
 
-@router.post("/reindex")
+@router.post("/chat/reindex")
 async def reindex(background_tasks: BackgroundTasks, user: User = Depends(verify_token), db: Session = Depends(get_db)):
     def reindex_all():
         user_id = str(user.id)  # Convert to string for file paths

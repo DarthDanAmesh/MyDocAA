@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Keep props optional
 interface SidebarProps {
   activeView?: 'chat' | 'documents' | 'search' | 'settings';
   setActiveView?: (view: 'chat' | 'documents' | 'search' | 'settings') => void;
@@ -14,7 +13,7 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
   const [fileCount, setFileCount] = useState(0);
   const { user, token, logout } = useAuth();
   const router = useRouter();
-
+  
   const navItems = [
     { id: 'chat', label: 'Chat', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
     { id: 'documents', label: 'Documents', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
@@ -25,24 +24,36 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
   // Fetch file count
   useEffect(() => {
     const fetchFileCount = async () => {
-      if (!token) return;
+      if (!token) {
+        console.warn("Token missing. Skipping fetchFileCount.");
+        return;
+      }
       
       try {
         const response = await fetch('/api/files/', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
         });
         
         if (response.ok) {
           const data = await response.json();
           setFileCount(data.length || 0);
+        } else if (response.status === 401) {
+          console.warn("Unauthorized. Logging out.");
+          logout();
+        } else {
+          console.error(`Error fetching file count: ${response.status} ${response.statusText}`);
         }
       } catch (error) {
         console.error('Error fetching file count:', error);
       }
     };
-
+    
     fetchFileCount();
-  }, [token]);
+  }, [token, logout]);
 
   const handleNavClick = (view: 'chat' | 'documents' | 'search' | 'settings') => {
     if (setActiveView) {

@@ -15,7 +15,7 @@ import os
 import shutil
 from typing import List
 
-router = APIRouter(prefix="/api/files", tags=["files"])
+router = APIRouter(tags=["files"])
 settings = get_settings()
 kb_indexer = KnowledgeBaseIndexer()
 limiter = Limiter(key_func=get_remote_address)
@@ -23,7 +23,7 @@ limiter = Limiter(key_func=get_remote_address)
 def get_file_service():
     return AdvancedIngestionService()
 
-@router.post("/", response_model=FileResponse)
+@router.post("/files", response_model=FileResponse)
 @limiter.limit("5/minute")
 async def upload_file(
     request: Request,
@@ -67,7 +67,7 @@ async def upload_file(
         created_at=record.created_at
     )
 
-@router.get("/", response_model=List[FileResponse])
+@router.get("/files", response_model=List[FileResponse])
 async def list_files(
     user: User = Depends(verify_token), 
     service: AdvancedIngestionService = Depends(get_file_service),
@@ -77,7 +77,7 @@ async def list_files(
     files = await service.get_user_files(user, db)
     return files
 
-@router.get("/{file_id}", response_model=FileResponse)
+@router.get("/files/{file_id}", response_model=FileResponse)
 async def get_file(
     file_id: str, 
     user: User = Depends(verify_token),
@@ -90,7 +90,7 @@ async def get_file(
         raise HTTPException(404, "File not found")
     return file
 
-@router.delete("/{file_id}")
+@router.delete("/files/{file_id}")
 async def delete_file(
     file_id: str, 
     user: User = Depends(verify_token),
@@ -107,7 +107,7 @@ async def delete_file(
     
     return {"status": "success", "message": f"File {file_id} deleted and embeddings removed"}
 
-@router.get("/{file_id}/tags")
+@router.get("/files/{file_id}/tags")
 async def get_file_tags(file_id: str, user: User = Depends(verify_token)):
     try:
         results = kb_indexer.collection.query(
@@ -122,7 +122,7 @@ async def get_file_tags(file_id: str, user: User = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(500, f"Error fetching tags: {str(e)}")
 
-@router.get("/{file_id}/status")
+@router.get("/files/{file_id}/status")
 async def get_file_status(
     file_id: str, 
     user: User = Depends(verify_token), 

@@ -42,7 +42,8 @@ export default function SearchView() {
     
     try {
       const response = await fetch('/api/files/tags', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       
       if (response.ok) {

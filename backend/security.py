@@ -1,7 +1,7 @@
 # backend/security.py
 
-from fastapi import Depends, HTTPException, status, WebSocket
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, WebSocket, Request
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from backend.models.user_model import User
@@ -31,8 +31,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # password hashing
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token", auto_error=False)
+security = HTTPBearer(auto_error=False)
 
 
 def verify_password(plain_password:str, hashed_password:str) -> bool:
@@ -48,12 +48,25 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def verify_token(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Try to get token from Authorization header (Bearer scheme)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    
+    # If no token found, raise exception
+    if not token:
+        raise credentials_exception
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -74,28 +87,34 @@ def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_
     if user is None:
         raise credentials_exception
     
-    return user  # Return the full user object
+    return user  # Return the full 
     
 
 async def verify_websocket_token(websocket: WebSocket, db: Session = Depends(get_db)):
     token = websocket.query_params.get("token")
+    print(f"WebSocket token received: {token}")
+
     if not token:
         await websocket.close(code=4001, reason="Missing token")
         raise HTTPException(status_code=401, detail="Missing token")
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"Decoded JWT payload: {payload}")
         user_id: str = payload.get("sub")
         if user_id is None:
             await websocket.close(code=4001, reason="Invalid token: user_id not found")
             raise HTTPException(status_code=401, detail="Invalid token: user_id not found")
-        
-        # Fetch the user from the database
+
         user = db.query(User).filter(User.id == int(user_id)).first()
         if user is None:
             await websocket.close(code=4001, reason="User not found")
             raise HTTPException(status_code=401, detail="User not found")
-            
+
+        print(f"Authenticated user from WebSocket: {user.username}")
         return user
-    except JWTError:
+
+    except JWTError as e:
+        print(f"JWT decode error: {str(e)}")
         await websocket.close(code=4001, reason="Invalid or expired token")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
