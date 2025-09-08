@@ -48,32 +48,33 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token: str = Depends(oauth2_scheme), db:Session = Depends(get_db)):
+def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: user_id not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},  
-        )
+            raise credentials_exception
+    except JWTError as e:
+        print(f"JWT Error: {str(e)}")
+        raise credentials_exception
     
-    #fetch the user from the database
-    user = db.query(User).filter(User.id==int(user_id)).first()
+    try:
+        user_id_int = int(user_id)
+    except ValueError:
+        raise credentials_exception
+    
+    # Fetch the user from the database
+    user = db.query(User).filter(User.id == user_id_int).first()
     if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    return user # return the full user object
+        raise credentials_exception
+    
+    return user  # Return the full user object
     
 
 async def verify_websocket_token(websocket: WebSocket, db: Session = Depends(get_db)):

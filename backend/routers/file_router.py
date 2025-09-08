@@ -26,7 +26,7 @@ def get_file_service():
 @router.post("/", response_model=FileResponse)
 @limiter.limit("5/minute")
 async def upload_file(
-    request: Request,  # Add Request parameter here
+    request: Request,
     file: UploadFile = File(...),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(verify_token),
@@ -46,16 +46,26 @@ async def upload_file(
     db.add(record)
     db.commit()
     db.refresh(record)
+    
     background_tasks.add_task(
         process_and_index_file,
         file_path=result["file_path"],
         filename=result["filename"],
         file_id=result["file_id"],
         file_type=result["content_type"],
-        user_id=str(user.id),  # Pass the user_id to the indexing process
+        user_id=str(user.id),
         kb_indexer=kb_indexer
     )
-    return record
+    
+    # Convert the record to match the FileResponse schema
+    return FileResponse(
+        file_id=record.file_id,
+        filename=record.filename,
+        content_type=record.content_type,
+        size=record.size,
+        user_id=str(record.user_id),
+        created_at=record.created_at
+    )
 
 @router.get("/", response_model=List[FileResponse])
 async def list_files(

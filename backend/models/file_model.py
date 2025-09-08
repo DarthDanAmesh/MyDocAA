@@ -19,4 +19,4 @@ class FileRecord(Base):
     created_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationship to User
-    user = relationship("User", backref="files")
+    user = relationship("User", back_populates="files")

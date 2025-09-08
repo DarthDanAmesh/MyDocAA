@@ -14,7 +14,7 @@ from backend.security import (
 )
 from pydantic import BaseModel, EmailStr
 
-router = APIRouter(prefix="/api", tags=["authentication"])
+router = APIRouter(tags=["authentication"])
 
 class UserCreate(BaseModel):
     username: str
@@ -33,7 +33,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, tags=["authentication"])
 def register(user: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
     db_user = db.query(User).filter(User.email == user.email).first()
@@ -63,7 +63,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-@router.post("/login", response_model=Token)
+@router.post("/token", response_model=Token, tags=["authentication"])
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # Authenticate user
     user = db.query(User).filter(User.username == form_data.username).first()
@@ -81,6 +81,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/users/me", response_model=UserResponse, tags=["authentication"])
 def get_current_user(user: User = Depends(verify_token)):
     return user

@@ -16,5 +16,4 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationship to FileRecord
-
-    files = relationship("FileRecord", backref="owner")
+    files = relationship("FileRecord", back_populates="user")

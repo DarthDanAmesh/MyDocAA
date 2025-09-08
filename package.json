@@ -11,8 +11,11 @@
   "dependencies": {
     "@clerk/nextjs": "^6.31.6",
     "@clerk/shared": "^3.23.0",
+    "@types/formidable": "^3.4.5",
     "@vercel/analytics": "^1.5.0",
     "axios": "^1.11.0",
+    "dotenv": "^17.2.2",
+    "formidable": "^3.5.4",
     "next": "15.5.2",
     "openai": "^5.16.0",
     "react": "19.1.0",

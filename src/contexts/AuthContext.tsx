@@ -38,7 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch('/login', {
+      const response = await fetch('http://localhost:8000/api/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -47,26 +47,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           username,
           password,
         }),
+        credentials: 'include',
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setToken(data.access_token);
-        localStorage.setItem('token', data.access_token);
-        
-        // Fetch user info
-        const userResponse = await fetch('/me', {
-          headers: {
-            'Authorization': `Bearer ${data.access_token}`,
-          },
-        });
-        
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-          return true;
-        }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Login failed:', errorData.detail);
+        return false;
+      }
+      
+      const data = await response.json();
+      setToken(data.access_token);
+      localStorage.setItem('token', data.access_token);
+      
+      // Fetch user info
+      const userResponse = await fetch('http://localhost:8000/api/users/me', {
+        headers: {
+          'Authorization': `Bearer ${data.access_token}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return true;
       }
       return false;
     } catch (error) {
@@ -77,15 +83,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (username: string, email: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch('/register', {
+      const response = await fetch('http://localhost:8000/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, email, password }),
+        credentials: 'include',
       });
-
-      return response.ok;
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Registration failed:', errorData.detail);
+        return false;
+      }
+      
+      return true;
     } catch (error) {
       console.error('Registration error:', error);
       return false;

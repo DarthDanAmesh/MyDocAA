@@ -16,10 +16,13 @@ class FileCreate(FileBase):
     file_path: str
 
 
-class FileResponse(FileBase):
+class FileResponse(BaseModel):
+    file_id: str
+    filename: str
+    content_type: str
+    size: int
+    user_id: str
     created_at: datetime
-
-    # ✅ Pydantic v2: Use model_config instead of Config
-    model_config = {
-        "from_attributes": True  # replaces orm_mode=True
-    }
+    
+    class Config:
+        from_attributes = True
