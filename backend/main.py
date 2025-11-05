@@ -1,21 +1,22 @@
 # backend/main.py
-from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi import FastAPI
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.errors import RateLimitExceeded
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
-# Routers
-from backend.routers.chat_router import router as chat_router
-from backend.routers.file_router import router as file_router
-from backend.routers.auth_router import router as auth_router
+# Use relative imports consistently
+from .routers.chat_router import router as chat_router
+from .routers.file_router import router as file_router
+from .routers.auth_router import router as auth_router
 
-# DB
-from backend.db import Base, engine
-from backend.models.user_model import User
-from backend.models.file_model import FileRecord
+# DB imports
+from .db import Base, engine
+from .models.user_model import User
+from .models.file_model import FileRecord
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -25,6 +26,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 # FastAPI app
 app = FastAPI(title="DocAA", version="0.2.0")
+
 
 # Custom OpenAPI schema
 def custom_openapi():
@@ -56,10 +58,13 @@ def custom_openapi():
         if path.startswith("/api/files") or path == "/api/users/me":
             for method in openapi_schema["paths"][path]:
                 if "security" not in openapi_schema["paths"][path][method]:
-                    openapi_schema["paths"][path][method]["security"] = [{"OAuth2PasswordBearer": []}]
+                    openapi_schema["paths"][path][method]["security"] = [
+                        {"OAuth2PasswordBearer": []}
+                    ]
     
     app.openapi_schema = openapi_schema
     return app.openapi_schema
+
 
 app.openapi = custom_openapi
 
@@ -80,16 +85,22 @@ app.add_middleware(SlowAPIMiddleware)
 
 # Include routers
 app.include_router(auth_router, prefix="/api")
-app.include_router(chat_router, prefix="/api")  
+app.include_router(chat_router, prefix="/api")
 app.include_router(file_router, prefix="/api")
 
+
 # Print all routes for debugging
-print("\nAll registered routes:")
-for route in app.routes:
-    if hasattr(route, 'path') and hasattr(route, 'methods'):
-        print(f"{route.methods} {route.path}")
+@app.on_event("startup")
+async def startup_event():
+    print("\n=== DocAA API Started ===")
+    print("\nAll registered routes:")
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            print(f"  {list(route.methods)[0]:6} {route.path}")
+    print("\n========================\n")
+
 
 # Healthcheck
 @app.get("/", tags=["health"])
 async def health():
-    return {"status": "running"}
+    return {"status": "running", "version": "0.2.0"}

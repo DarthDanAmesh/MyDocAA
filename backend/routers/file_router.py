@@ -1,14 +1,14 @@
 # backend/routers/file_router.py
 from fastapi import APIRouter, UploadFile, File, Depends, BackgroundTasks, HTTPException, Request
 from sqlalchemy.orm import Session
-from backend.services.file_service import AdvancedIngestionService, PDFTextExtractor
-from backend.services.knowledge_base_service import KnowledgeBaseIndexer
-from backend.config import get_settings
-from backend.security import verify_token
-from backend.db import get_db
-from backend.models.file_model import FileRecord
-from backend.models.user_model import User
-from backend.schemas.file_schema import FileResponse
+from ..services.file_service import AdvancedIngestionService, PDFTextExtractor
+from ..services.knowledge_base_service import KnowledgeBaseIndexer
+from ..config import get_settings
+from ..security import verify_token
+from ..db import get_db
+from ..models.file_model import FileRecord
+from ..models.user_model import User
+from ..schemas.file_schema import FileResponse
 from slowapi.util import get_remote_address
 from slowapi import Limiter
 import os

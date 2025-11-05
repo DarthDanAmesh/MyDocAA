@@ -1,12 +1,12 @@
-# backend/services/chat_service.py
+# ./services/chat_service.py
 from ollama import AsyncClient
 import logging
 from typing import Dict, Any, Optional, List
-from backend.services.knowledge_base_service import KnowledgeBaseIndexer
-from backend.models.user_model import User
+from ..services.knowledge_base_service import KnowledgeBaseIndexer
+from ..models.user_model import User
 from sqlalchemy.orm import Session
-from backend.db import get_db
-from backend.models.file_model import FileRecord
+from ..db import get_db
+from ..models.file_model import FileRecord
 
 logger = logging.getLogger(__name__)
 

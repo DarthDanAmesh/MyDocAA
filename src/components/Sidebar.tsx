@@ -21,39 +21,39 @@ export default function Sidebar({ activeView, setActiveView }: SidebarProps) {
     { id: 'settings', label: 'Settings', icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' },
   ];
 
-  // Fetch file count
-  useEffect(() => {
-    const fetchFileCount = async () => {
-      if (!token) {
-        console.warn("Token missing. Skipping fetchFileCount.");
-        return;
-      }
-      
-      try {
-        const response = await fetch('/api/files/', {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setFileCount(data.length || 0);
-        } else if (response.status === 401) {
-          console.warn("Unauthorized. Logging out.");
-          logout();
-        } else {
-          console.error(`Error fetching file count: ${response.status} ${response.statusText}`);
-        }
-      } catch (error) {
-        console.error('Error fetching file count:', error);
-      }
-    };
+// Fetch file count
+useEffect(() => {
+  const fetchFileCount = async () => {
+    if (!token) {
+      console.log("Token missing. Skipping fetchFileCount.");
+      return;
+    }
     
-    fetchFileCount();
-  }, [token, logout]);
+    try {
+      const response = await fetch('/api/files/', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFileCount(data.length || 0);
+      } else if (response.status === 401) {
+        console.warn("Unauthorized. Logging out.");
+        logout();
+      } else {
+        console.error(`Error fetching file count: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error fetching file count:', error);
+    }
+  };
+  
+  fetchFileCount();
+}, [token, logout]);
 
   const handleNavClick = (view: 'chat' | 'documents' | 'search' | 'settings') => {
     if (setActiveView) {
