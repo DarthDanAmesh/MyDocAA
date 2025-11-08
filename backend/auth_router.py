@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
 # Use relative imports
-from ..db import get_db
-from ..models.user_model import User
-from ..security import (
+from db import get_db
+from user_model import User
+from security import (
     verify_password, 
     verify_token,
     get_password_hash, 
@@ -150,13 +150,9 @@ def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Create access token
+        # Create access token (removed expires_delta - it's handled in create_access_token)
         logger.info(f"Creating access token for user: {user.username}")
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": str(user.id)},
-            expires_delta=access_token_expires
-        )
+        access_token = create_access_token(data={"sub": str(user.id)})
         
         logger.info(f"User {user.username} logged in successfully")
         return {"access_token": access_token, "token_type": "bearer"}

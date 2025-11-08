@@ -8,15 +8,15 @@ import shutil
 from urllib.parse import unquote
 import uuid
 from typing import List, Dict, Any
-from ..config import get_settings
-from ..services.chat_service import ChatbotService
-from ..services.file_service import AdvancedIngestionService, PDFTextExtractor
-from ..services.knowledge_base_service import KnowledgeBaseIndexer
-from ..security import verify_token, verify_websocket_token
-from ..models.user_model import User  # Import User model
-from ..models.file_model import FileRecord # Import FileRecord model
+from config import get_settings
+from chat_service import ChatbotService
+from file_service import AdvancedIngestionService, PDFTextExtractor
+from knowledge_base_service import KnowledgeBaseIndexer
+from security import verify_token, verify_websocket_token
+from user_model import User  # Import User model
+from file_model import FileRecord # Import FileRecord model
 from sqlalchemy.orm import Session  # Import Session for database operations
-from ..db import get_db  # Import get_db dependency
+from db import get_db  # Import get_db dependency
 
 router = APIRouter(tags=["chat"])
 settings = get_settings()

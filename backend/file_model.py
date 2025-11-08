@@ -3,7 +3,7 @@
 from sqlalchemy import ForeignKey, Column, String, Integer, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from ..db import Base
+from db import Base
 
 
 class FileRecord(Base):

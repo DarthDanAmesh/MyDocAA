@@ -9,14 +9,14 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 # Use relative imports consistently
-from .routers.chat_router import router as chat_router
-from .routers.file_router import router as file_router
-from .routers.auth_router import router as auth_router
+from chat_router import router as chat_router
+from file_router import router as file_router
+from auth_router import router as auth_router
 
 # DB imports
-from .db import Base, engine
-from .models.user_model import User
-from .models.file_model import FileRecord
+from db import Base, engine
+from user_model import User
+from file_model import FileRecord
 
 # Create tables
 Base.metadata.create_all(bind=engine)

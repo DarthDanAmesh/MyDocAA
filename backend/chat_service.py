@@ -2,11 +2,11 @@
 from ollama import AsyncClient
 import logging
 from typing import Dict, Any, Optional, List
-from ..services.knowledge_base_service import KnowledgeBaseIndexer
-from ..models.user_model import User
+from knowledge_base_service import KnowledgeBaseIndexer
+from user_model import User
 from sqlalchemy.orm import Session
-from ..db import get_db
-from ..models.file_model import FileRecord
+from db import get_db
+from file_model import FileRecord
 
 logger = logging.getLogger(__name__)
 

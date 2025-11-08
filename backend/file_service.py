@@ -3,13 +3,13 @@ import os
 import uuid
 from typing import Dict, List, Optional
 from fastapi import UploadFile, HTTPException
-from ..config import get_settings
+from config import get_settings
 import tempfile
 import fitz #PyMuPDF
-from ..models.user_model import User  # Import User model
-from ..models.file_model import FileRecord  # Import FileRecord model
+from user_model import User  # Import User model
+from file_model import FileRecord  # Import FileRecord model
 from sqlalchemy.orm import Session  # Import Session
-from ..db import get_db  # Import get_db
+from db import get_db  # Import get_db
 
 settings = get_settings()
 

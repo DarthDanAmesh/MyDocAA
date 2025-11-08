@@ -7,8 +7,8 @@ from chromadb.utils import embedding_functions
 from chromadb.config import Settings
 from typing import Dict, List, Optional, Any
 import logging
-from ..config import get_settings
-from ..models.user_model import User  # Import User model
+from config import get_settings
+from user_model import User  # Import User model
 from sqlalchemy.orm import Session  # Import Session
 
 settings = get_settings()
