@@ -1,4 +1,4 @@
-ai-assistant>$ uvicorn backend.main:app --reload --port 8000
+ai-assistant\backend>$ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 backend is the root folder of the backend (if you name it app, change to : uvicorn app.main:app --reload --port 8000)
 
 check models available to the api: curl http://localhost:11434/api/tags
@@ -12,4 +12,25 @@ run tests
 cd to app
 
 ai-assistant\app>$pytest
+# Default: Delete and recreate admin user
+python create_admin.py
 
+# Delete and recreate admin specifically
+python create_admin.py --recreate-admin
+
+# Create admin only if it doesn't exist
+python create_admin.py--create-admin
+
+# Recreate admin and create test users
+python create_admin.py --recreate-admin --test-users
+
+# List all users
+python create_admin.py --list-users
+
+# Delete ALL users (use with caution!)
+python scripts/create_admin.py --delete-all-users
+add settings route (profile settings) to be visible,
+add humanizer to be visible, and useful
+
+
+config.py, security.py, : important

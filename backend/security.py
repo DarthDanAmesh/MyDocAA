@@ -70,24 +70,19 @@ def verify_token(
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        username: str = payload.get("sub")  # Changed from user_id to username
+        if username is None:
             raise credentials_exception
     except JWTError as e:
         print(f"JWT Error: {str(e)}")
         raise credentials_exception
     
-    try:
-        user_id_int = int(user_id)
-    except ValueError:
-        raise credentials_exception
-    
-    # Fetch the user from the database
-    user = db.query(User).filter(User.id == user_id_int).first()
+    # Fetch the user from the database by username
+    user = db.query(User).filter(User.username == username).first()  # Changed to username
     if user is None:
         raise credentials_exception
     
-    return user  # Return the full 
+    return user
     
 
 async def verify_websocket_token(websocket: WebSocket, db: Session = Depends(get_db)):
